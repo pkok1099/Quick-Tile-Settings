@@ -97,6 +97,30 @@ class PreferencesManager private constructor(context: Context) {
         )
     val vpnDetectionMode: StateFlow<String> = _vpnDetectionMode.asStateFlow()
 
+    // WireGuard remote-control tile: only tunnel *names* are stored here.
+    // No config, key, or tunnel state lives in this app; the WireGuard app
+    // owns all of that. Deliberately left out of the settings backup export
+    // so a backup file never implies a tunnel exists on the restored device.
+    // The WireGuard app exposes no tunnel list, so the list below is entered
+    // by hand in the WireGuard tab; the selected name is what the tile toggles.
+    private val _wireGuardTunnelName = MutableStateFlow(
+        sharedPreferences.getString(KEY_WIREGUARD_TUNNEL_NAME, null)
+    )
+    val wireGuardTunnelName: StateFlow<String?> = _wireGuardTunnelName.asStateFlow()
+
+    // Migration, read-only until the next list write: a single name saved
+    // before the list existed shows up as the first (and selected) entry.
+    private val _wireGuardTunnelNames = MutableStateFlow(
+        sharedPreferences.getStringSet(KEY_WIREGUARD_TUNNEL_NAMES, null)
+            ?.mapNotNull { it.trim().takeIf { name -> name.isNotEmpty() } }
+            ?.sorted()
+            ?.takeIf { it.isNotEmpty() }
+            ?: _wireGuardTunnelName.value?.trim()?.takeIf { it.isNotEmpty() }
+                ?.let { listOf(it) }
+            ?: emptyList()
+    )
+    val wireGuardTunnelNames: StateFlow<List<String>> = _wireGuardTunnelNames.asStateFlow()
+
     // Network Type Detection Settings
     private val _networkTypeDetectionEnabled =
         MutableStateFlow(sharedPreferences.getBoolean(KEY_NETWORK_TYPE_DETECTION_ENABLED, false))
@@ -264,6 +288,44 @@ class PreferencesManager private constructor(context: Context) {
     fun setVpnDetectionMode(mode: String) {
         sharedPreferences.edit { putString(KEY_VPN_DETECTION_MODE, mode) }
         _vpnDetectionMode.value = mode
+    }
+
+    fun setWireGuardTunnelName(name: String) {
+        val normalized = name.trim().takeIf { it.isNotEmpty() }
+        if (normalized == null) {
+            sharedPreferences.edit { remove(KEY_WIREGUARD_TUNNEL_NAME) }
+        } else {
+            sharedPreferences.edit { putString(KEY_WIREGUARD_TUNNEL_NAME, normalized) }
+            if (!_wireGuardTunnelNames.value.contains(normalized)) {
+                setWireGuardTunnelNames(_wireGuardTunnelNames.value + normalized)
+            }
+        }
+        _wireGuardTunnelName.value = normalized
+    }
+
+    // Selecting a tunnel also makes it the tile's target. Adding a name
+    // selects it, so a just-added connection is usable with one tile tap.
+    fun addWireGuardTunnelName(name: String) {
+        val normalized = name.trim().takeIf { it.isNotEmpty() } ?: return
+        if (!_wireGuardTunnelNames.value.contains(normalized)) {
+            setWireGuardTunnelNames(_wireGuardTunnelNames.value + normalized)
+        }
+        setWireGuardTunnelName(normalized)
+    }
+
+    fun removeWireGuardTunnelName(name: String) {
+        val remaining = _wireGuardTunnelNames.value.filterNot { it == name }
+        if (remaining.size == _wireGuardTunnelNames.value.size) return
+        setWireGuardTunnelNames(remaining)
+        if (_wireGuardTunnelName.value == name) {
+            setWireGuardTunnelName(remaining.firstOrNull() ?: "")
+        }
+    }
+
+    private fun setWireGuardTunnelNames(names: List<String>) {
+        val sorted = names.map { it.trim() }.filter { it.isNotEmpty() }.sorted()
+        sharedPreferences.edit { putStringSet(KEY_WIREGUARD_TUNNEL_NAMES, sorted.toSet()) }
+        _wireGuardTunnelNames.value = sorted
     }
 
     fun setNetworkTypeDetectionEnabled(enabled: Boolean) {
@@ -912,6 +974,18 @@ class PreferencesManager private constructor(context: Context) {
     fun isUsbRequireUnlockEnabled(): Boolean =
         sharedPreferences.getBoolean(KEY_USB_REQUIRE_UNLOCK, false)
 
+    fun getWireGuardTunnelNameBlocking(): String? =
+        sharedPreferences.getString(KEY_WIREGUARD_TUNNEL_NAME, null)
+            ?.trim()?.takeIf { it.isNotEmpty() }
+
+    fun getWireGuardTunnelNamesBlocking(): List<String> =
+        sharedPreferences.getStringSet(KEY_WIREGUARD_TUNNEL_NAMES, null)
+            ?.mapNotNull { it.trim().takeIf { name -> name.isNotEmpty() } }
+            ?.sorted()
+            ?.takeIf { it.isNotEmpty() }
+            ?: getWireGuardTunnelNameBlocking()?.let { listOf(it) }
+            ?: emptyList()
+
     fun isVpnDetectionEnabled(): Boolean =
         sharedPreferences.getBoolean(KEY_VPN_DETECTION_ENABLED, false)
 
@@ -971,6 +1045,8 @@ class PreferencesManager private constructor(context: Context) {
 
         private const val KEY_VPN_DETECTION_ENABLED = "vpn_detection_enabled"
         private const val KEY_VPN_DETECTION_MODE = "vpn_detection_mode"
+        private const val KEY_WIREGUARD_TUNNEL_NAME = "wireguard_tunnel_name"
+        private const val KEY_WIREGUARD_TUNNEL_NAMES = "wireguard_tunnel_names_v1"
 
         private const val KEY_NETWORK_TYPE_DETECTION_ENABLED = "network_type_detection_enabled"
         private const val KEY_NETWORK_TYPE_DETECTION_MODE = "network_type_detection_mode"

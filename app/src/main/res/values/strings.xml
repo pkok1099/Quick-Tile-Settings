@@ -4,6 +4,8 @@
     <!-- Tile Labels -->
     <string name="tile_label_private_dns">Private DNS</string>
     <string name="tile_label_usb_debugging">USB Debugging</string>
+    <string name="tile_label_wireguard">WireGuard</string>
+    <string name="tile_wireguard_no_tunnel">WireGuard: no tunnel</string>
     <string name="dns_state_reverted_to">DNS reverted to %1$s</string>
     <string name="usb_state_reverted_to">USB Debug reverted to %1$s</string>
     <string name="toast_developer_options_disabled_revert_cancelled">Dev options off. USB revert cancelled.</string>
@@ -27,6 +29,28 @@
     <string name="app_settings_title">Settings</string>
     <string name="tab_title_dns">Private DNS</string>
     <string name="tab_title_usb">USB Debugging</string>
+    <string name="tab_title_wireguard">WireGuard</string>
+
+    <!-- WireGuard remote-control tile (controls the official WireGuard app) -->
+    <string name="setting_title_wireguard">WireGuard Tile</string>
+    <string name="setting_desc_wireguard_remote">This tile does not run a tunnel itself. It sends an up/down command to a tunnel that already exists in the official WireGuard app. Before the tile can work: install the WireGuard app, create the tunnel there, turn that tunnel on once manually, and enable Settings → Advanced → Allow remote control apps in the WireGuard app.</string>
+    <string name="wireguard_tunnel_name_label">Tunnel name (exactly as in the WireGuard app)</string>
+    <string name="wireguard_connections_title">Connections</string>
+    <string name="wireguard_connections_empty">No connections yet. Add the tunnel names exactly as they appear in the WireGuard app, then tap one to select it for the tile.</string>
+    <string name="wireguard_connection_add">Add connection</string>
+    <string name="wireguard_connection_delete">Remove connection</string>
+    <string name="wireguard_connection_selected">Selected for the tile</string>
+    <string name="wireguard_status_installed">WireGuard app installed</string>
+    <string name="wireguard_status_not_installed">WireGuard app not installed</string>
+    <string name="wireguard_status_permission_granted">Control permission granted</string>
+    <string name="wireguard_status_permission_missing">Control permission not granted</string>
+    <string name="wireguard_button_request_permission">Request control permission</string>
+    <string name="wireguard_button_open_app">Open WireGuard app</string>
+    <string name="wireguard_button_open_store">Install WireGuard app</string>
+    <string name="wireguard_note_tile_state">Tile state follows any active VPN, because the WireGuard app does not expose one tunnel\u2019s state to other apps. If another VPN is active, the tile will look active too.</string>
+    <string name="toast_wireguard_no_tunnel">No WireGuard tunnel configured. Open the app to set one.</string>
+    <string name="toast_wireguard_not_installed">WireGuard app is not installed.</string>
+    <string name="toast_wireguard_permission_missing">WireGuard control permission is missing. Open the app to grant it.</string>
 
     <!-- Toasts & Warnings -->
     <string name="toast_permission_not_granted_adb">Permission missing. Please grant via ADB.</string>
@@ -342,6 +366,13 @@
     <string name="quick_action_title">Quick Actions</string>
     <string name="quick_action_dns_title">Private DNS</string>
     <string name="quick_action_usb_title">USB Debugging</string>
+    <string name="quick_action_wireguard_title">WireGuard</string>
+    <string name="shortcut_wireguard_off_short">WireGuard Off</string>
+    <string name="shortcut_wireguard_off_long">Disconnect WireGuard tunnel</string>
+    <string name="shortcut_wireguard_tunnel_long">Connect to %1$s</string>
+    <string name="shortcut_wireguard_tunnel_selected_long">Connect to %1$s (Selected)</string>
+    <string name="shortcut_toast_wireguard_off">WireGuard tunnel disconnected</string>
+    <string name="shortcut_toast_wireguard_on">WireGuard connected to %1$s</string>
     <string name="quick_action_no_actions">No actions are enabled for this tile.</string>
     <string name="quick_action_open_app">Open app</string>
     <string name="wifi_permission_open_settings">Open app settings</string>

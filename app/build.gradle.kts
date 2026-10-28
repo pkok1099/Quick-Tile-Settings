@@ -10,11 +10,12 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.rbn.qtsettings"
+        // clone
+        applicationId = "com.onlasdan.tiles"
         minSdk = 29
         targetSdk = 37
-        versionCode = 13
-        versionName = "1.5.1"
+        versionCode = 14
+        versionName = "1.5.1-wg1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments += mapOf(

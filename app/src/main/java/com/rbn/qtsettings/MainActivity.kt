@@ -26,6 +26,7 @@ import com.rbn.qtsettings.ui.composables.main.MainScreen
 import com.rbn.qtsettings.ui.theme.QuickTileSettingsTheme
 import com.rbn.qtsettings.utils.Constants
 import com.rbn.qtsettings.utils.PermissionUtils
+import com.rbn.qtsettings.utils.WireGuardRemoteControl
 import com.rbn.qtsettings.viewmodel.MainViewModel
 import com.rbn.qtsettings.viewmodel.ViewModelFactory
 import kotlinx.coroutines.launch
@@ -56,6 +57,14 @@ class MainActivity : ComponentActivity() {
         } else {
             viewModel.onNotificationPermissionResult(isGranted)
         }
+    }
+
+    private val wireGuardControlPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        // The result is re-read from the system on resume via checkSystemStates;
+        // a custom permission dialog may also simply be dismissed.
+        viewModel.checkSystemStates(this)
     }
 
     private val wifiSsidPermissionLauncher = registerForActivityResult(
@@ -94,6 +103,8 @@ class MainActivity : ComponentActivity() {
                 viewModel.setInitialTab(0)
             } else if (tileSource.contains("UsbDebuggingTileService")) {
                 viewModel.setInitialTab(1)
+            } else if (tileSource.contains("WireGuardTileService")) {
+                viewModel.setInitialTab(2)
             }
         }
 
@@ -109,7 +120,12 @@ class MainActivity : ComponentActivity() {
                 MainScreen(
                     viewModel = viewModel,
                     onOpenAdbSettings = { openUsbDebuggingSettings(this) },
-                    onRequestShizukuPermission = { requestShizukuPermissionForApp() }
+                    onRequestShizukuPermission = { requestShizukuPermissionForApp() },
+                    onRequestWireGuardControlPermission = {
+                        wireGuardControlPermissionLauncher.launch(
+                            WireGuardRemoteControl.PERMISSION_CONTROL_TUNNELS
+                        )
+                    }
                 )
             }
         }

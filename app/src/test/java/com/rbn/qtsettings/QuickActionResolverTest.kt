@@ -5,12 +5,16 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import com.rbn.qtsettings.data.PreferencesManager
 import com.rbn.qtsettings.services.PrivateDnsTileService
 import com.rbn.qtsettings.services.UsbDebuggingTileService
+import com.rbn.qtsettings.services.WireGuardTileService
+import com.rbn.qtsettings.utils.WireGuardRemoteControl
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -56,6 +60,69 @@ class QuickActionResolverTest {
         val tileType = QuickActionResolver.resolveTileType(componentName, null)
 
         assertEquals(TileType.USB, tileType)
+    }
+
+    @Test
+    fun resolveTileType_wireGuardComponent_returnsWireGuard() {
+        val componentName = ComponentName(context, WireGuardTileService::class.java)
+
+        val tileType = QuickActionResolver.resolveTileType(componentName, null)
+
+        assertEquals(TileType.WIREGUARD, tileType)
+    }
+
+    @Test
+    fun resolveTileType_flattenedWireGuardComponent_returnsWireGuard() {
+        val componentNameText = ComponentName(context, WireGuardTileService::class.java)
+            .flattenToString()
+
+        val tileType = QuickActionResolver.resolveTileType(null, componentNameText)
+
+        assertEquals(TileType.WIREGUARD, tileType)
+    }
+
+    @Test
+    fun quickActionDialog_wireGuardTileWithoutPermission_opensWireGuardTab() {
+        val application = context as Application
+        shadowOf(application.packageManager).installPackage(
+            PackageInfo().apply { packageName = WireGuardRemoteControl.WIREGUARD_PACKAGE }
+        )
+        shadowOf(application).denyPermissions(WireGuardRemoteControl.PERMISSION_CONTROL_TUNNELS)
+        val tileServiceName = WireGuardTileService::class.java.name
+        val launchIntent = Intent(application, QuickActionDialogActivity::class.java).apply {
+            putExtra(Intent.EXTRA_COMPONENT_NAME, tileServiceName)
+        }
+
+        val activity = Robolectric.buildActivity(QuickActionDialogActivity::class.java, launchIntent)
+            .create()
+            .get()
+        val openedIntent = shadowOf(activity).nextStartedActivity
+
+        assertEquals(ComponentName(application, MainActivity::class.java), openedIntent.component)
+        assertEquals(tileServiceName, openedIntent.getStringExtra(Intent.EXTRA_COMPONENT_NAME))
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun quickActionDialog_wireGuardTileWithPermission_staysOpenForDialog() {
+        val application = context as Application
+        shadowOf(application.packageManager).installPackage(
+            PackageInfo().apply { packageName = WireGuardRemoteControl.WIREGUARD_PACKAGE }
+        )
+        shadowOf(application).grantPermissions(WireGuardRemoteControl.PERMISSION_CONTROL_TUNNELS)
+        prefsManager.addWireGuardTunnelName("Home")
+        val tileServiceName = WireGuardTileService::class.java.name
+        val launchIntent = Intent(application, QuickActionDialogActivity::class.java).apply {
+            putExtra(Intent.EXTRA_COMPONENT_NAME, tileServiceName)
+        }
+
+        val activity = Robolectric.buildActivity(QuickActionDialogActivity::class.java, launchIntent)
+            .create()
+            .get()
+        val openedIntent = shadowOf(activity).nextStartedActivity
+
+        assertNull(openedIntent)
+        assertFalse(activity.isFinishing)
     }
 
     @Test
@@ -129,6 +196,19 @@ class QuickActionResolverTest {
         assertFalse(actions.any { it.kind is QuickActionKind.DnsHostname })
         assertFalse(actions.any { (it.kind as? QuickActionKind.UsbDebugging)?.enable == true })
         assertTrue(actions.any { (it.kind as? QuickActionKind.UsbDebugging)?.enable == false })
+    }
+
+    @Test
+    fun buildQuickActions_wireGuardTile_returnsOffAndConfiguredTunnels() {
+        prefsManager.addWireGuardTunnelName("Office")
+        prefsManager.addWireGuardTunnelName("Home")
+
+        val actions = QuickActionResolver.buildQuickActions(context, prefsManager, TileType.WIREGUARD)
+
+        assertEquals(3, actions.size)
+        assertEquals(QuickActionKind.WireGuardOff, actions[0].kind)
+        assertEquals(QuickActionKind.WireGuardTunnel("Home"), actions[1].kind)
+        assertEquals(QuickActionKind.WireGuardTunnel("Office"), actions[2].kind)
     }
 
     @Test

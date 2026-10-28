@@ -71,6 +71,7 @@ import com.rbn.qtsettings.ui.composables.settings.NotificationPermissionFallback
 import com.rbn.qtsettings.ui.composables.settings.NotificationPermissionSettingsDialog
 import com.rbn.qtsettings.ui.composables.shortcuts.ShortcutSettingsScreen
 import com.rbn.qtsettings.ui.composables.usb.UsbDebuggingSettingsCard
+import com.rbn.qtsettings.ui.composables.wireguard.WireGuardSettingsCard
 import com.rbn.qtsettings.ui.theme.QuickTileSettingsTheme
 import com.rbn.qtsettings.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -86,7 +87,8 @@ private enum class MainScreenDestination {
 fun MainScreen(
     viewModel: MainViewModel,
     onOpenAdbSettings: () -> Unit,
-    onRequestShizukuPermission: () -> Unit
+    onRequestShizukuPermission: () -> Unit,
+    onRequestWireGuardControlPermission: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val commandCopiedMessage = stringResource(R.string.toast_command_copied)
@@ -139,7 +141,8 @@ fun MainScreen(
 
     val tabTitles = listOf(
         stringResource(R.string.tab_title_dns),
-        stringResource(R.string.tab_title_usb)
+        stringResource(R.string.tab_title_usb),
+        stringResource(R.string.tab_title_wireguard)
     )
     val initialTab by viewModel.initialTab.collectAsState()
     val pagerState = rememberPagerState(
@@ -312,7 +315,8 @@ fun MainScreen(
                         onShowPermissionDialog = {
                             showPermissionGrantDialog.value = true
                             viewModel.checkSystemStates(context)
-                        }
+                        },
+                        onRequestWireGuardControlPermission = onRequestWireGuardControlPermission
                     )
                 }
             }
@@ -427,7 +431,8 @@ private fun MainTilesContent(
     isDevOptionsEnabled: Boolean,
     tabTitles: List<String>,
     pagerState: PagerState,
-    onShowPermissionDialog: () -> Unit
+    onShowPermissionDialog: () -> Unit,
+    onRequestWireGuardControlPermission: () -> Unit = {}
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -468,6 +473,11 @@ private fun MainTilesContent(
                     1 -> UsbDebuggingSettingsCard(
                         viewModel = viewModel,
                         isDevOptionsEnabled = isDevOptionsEnabled
+                    )
+
+                    2 -> WireGuardSettingsCard(
+                        viewModel = viewModel,
+                        onRequestWireGuardControlPermission = onRequestWireGuardControlPermission
                     )
                 }
             }
