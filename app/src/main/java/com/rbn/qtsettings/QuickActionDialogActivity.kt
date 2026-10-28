@@ -35,12 +35,15 @@ import com.rbn.qtsettings.data.DnsHostnameEntry
 import com.rbn.qtsettings.data.PreferencesManager
 import com.rbn.qtsettings.services.PrivateDnsTileService
 import com.rbn.qtsettings.services.UsbDebuggingTileService
+import com.rbn.qtsettings.services.WireGuardTileService
 import com.rbn.qtsettings.ui.theme.QuickTileSettingsTheme
 import com.rbn.qtsettings.utils.Constants.DNS_MODE_AUTO
 import com.rbn.qtsettings.utils.Constants.DNS_MODE_OFF
 import com.rbn.qtsettings.utils.PermissionUtils
 import com.rbn.qtsettings.utils.SystemQuickActionResult
 import com.rbn.qtsettings.utils.SystemQuickActions
+import com.rbn.qtsettings.utils.VpnDetectionUtils
+import com.rbn.qtsettings.utils.WireGuardRemoteControl
 
 class QuickActionDialogActivity : ComponentActivity() {
 
@@ -50,10 +53,24 @@ class QuickActionDialogActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setShowWhenLocked(true)
 
-        if (!PermissionUtils.hasWriteSecureSettingsPermission(this)) {
+        val resolvedTileType = resolveTileType()
+        if (resolvedTileType == TileType.WIREGUARD) {
+            if (!WireGuardRemoteControl.isWireGuardAppInstalled(this)) {
+                Toast.makeText(this, R.string.toast_wireguard_not_installed, Toast.LENGTH_LONG)
+                    .show()
+                openApp(TileType.WIREGUARD)
+                return
+            }
+            if (!WireGuardRemoteControl.hasControlPermission(this)) {
+                Toast.makeText(this, R.string.toast_wireguard_permission_missing, Toast.LENGTH_LONG)
+                    .show()
+                openApp(TileType.WIREGUARD)
+                return
+            }
+        } else if (!PermissionUtils.hasWriteSecureSettingsPermission(this)) {
             Toast.makeText(this, R.string.toast_permission_not_granted_adb, Toast.LENGTH_LONG)
                 .show()
-            openApp(resolveTileType())
+            openApp(resolvedTileType)
             return
         }
 
@@ -61,7 +78,7 @@ class QuickActionDialogActivity : ComponentActivity() {
 
         setContent {
             QuickTileSettingsTheme {
-                val tileType = remember { resolveTileType() }
+                val tileType = remember { resolvedTileType }
                 val actions = remember(tileType) { buildQuickActions(tileType) }
                 QuickActionsDialog(
                     tileType = tileType,
@@ -100,6 +117,9 @@ class QuickActionDialogActivity : ComponentActivity() {
                 flattenedComponent.contains(PrivateDnsTileService::class.java.name) ->
                     ComponentName(this@QuickActionDialogActivity, PrivateDnsTileService::class.java)
 
+                flattenedComponent.contains(WireGuardTileService::class.java.name) ->
+                    ComponentName(this@QuickActionDialogActivity, WireGuardTileService::class.java)
+
                 else -> null
             }
     }
@@ -115,6 +135,9 @@ class QuickActionDialogActivity : ComponentActivity() {
             QuickActionKind.DnsOff -> prefsManager.isDnsRequireUnlockEnabled()
 
             is QuickActionKind.UsbDebugging -> prefsManager.isUsbRequireUnlockEnabled()
+
+            QuickActionKind.WireGuardOff,
+            is QuickActionKind.WireGuardTunnel -> true
         }
 
         val keyguardManager = getSystemService(KeyguardManager::class.java)
@@ -213,11 +236,89 @@ class QuickActionDialogActivity : ComponentActivity() {
                             ).show()
                     }
                 }
+
+                QuickActionKind.WireGuardOff -> {
+                    handleWireGuardOffAction()
+                }
+
+                is QuickActionKind.WireGuardTunnel -> {
+                    handleWireGuardTunnelAction(kind.tunnelName)
+                }
             }
         } catch (_: Exception) {
             Toast.makeText(this, R.string.toast_error_saving_settings, Toast.LENGTH_SHORT).show()
         } finally {
             finish()
+        }
+    }
+
+    private fun handleWireGuardOffAction() {
+        if (!WireGuardRemoteControl.isWireGuardAppInstalled(this)) {
+            Toast.makeText(this, R.string.toast_wireguard_not_installed, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!WireGuardRemoteControl.hasControlPermission(this)) {
+            Toast.makeText(this, R.string.toast_wireguard_permission_missing, Toast.LENGTH_LONG)
+                .show()
+            return
+        }
+
+        val tunnelsToStop = buildList {
+            prefsManager.getWireGuardTunnelNameBlocking()?.let { add(it) }
+            addAll(prefsManager.getWireGuardTunnelNamesBlocking())
+        }.distinct()
+
+        if (tunnelsToStop.isEmpty()) {
+            Toast.makeText(this, R.string.toast_wireguard_no_tunnel, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        var anySent = false
+        tunnelsToStop.forEach { tunnelName ->
+            if (WireGuardRemoteControl.sendTunnelCommand(this, tunnelName, up = false)) {
+                anySent = true
+            }
+        }
+
+        if (anySent) {
+            Toast.makeText(
+                this,
+                getString(R.string.shortcut_toast_wireguard_off),
+                Toast.LENGTH_SHORT
+            ).show()
+            requestTileRefresh(WireGuardTileService::class.java)
+        } else {
+            Toast.makeText(this, R.string.toast_error_saving_settings, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun handleWireGuardTunnelAction(tunnelName: String) {
+        if (!WireGuardRemoteControl.isWireGuardAppInstalled(this)) {
+            Toast.makeText(this, R.string.toast_wireguard_not_installed, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!WireGuardRemoteControl.hasControlPermission(this)) {
+            Toast.makeText(this, R.string.toast_wireguard_permission_missing, Toast.LENGTH_LONG)
+                .show()
+            return
+        }
+
+        val previousTunnel = prefsManager.getWireGuardTunnelNameBlocking()
+        if (previousTunnel != null && previousTunnel != tunnelName && VpnDetectionUtils.isVpnActive(this)) {
+            WireGuardRemoteControl.sendTunnelCommand(this, previousTunnel, up = false)
+        }
+
+        prefsManager.setWireGuardTunnelName(tunnelName)
+        val sent = WireGuardRemoteControl.sendTunnelCommand(this, tunnelName, up = true)
+        if (sent) {
+            Toast.makeText(
+                this,
+                getString(R.string.shortcut_toast_wireguard_on, tunnelName),
+                Toast.LENGTH_SHORT
+            ).show()
+            requestTileRefresh(WireGuardTileService::class.java)
+        } else {
+            Toast.makeText(this, R.string.toast_error_saving_settings, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -257,6 +358,7 @@ class QuickActionDialogActivity : ComponentActivity() {
         val tileSource = when (tileType) {
             TileType.DNS -> PrivateDnsTileService::class.java.name
             TileType.USB -> UsbDebuggingTileService::class.java.name
+            TileType.WIREGUARD -> WireGuardTileService::class.java.name
             TileType.ALL -> null
         }
 
@@ -308,6 +410,7 @@ class QuickActionDialogActivity : ComponentActivity() {
                     text = when (tileType) {
                         TileType.DNS -> stringResource(R.string.quick_action_dns_title)
                         TileType.USB -> stringResource(R.string.quick_action_usb_title)
+                        TileType.WIREGUARD -> stringResource(R.string.quick_action_wireguard_title)
                         TileType.ALL -> stringResource(R.string.quick_action_title)
                     }
                 )
@@ -372,6 +475,7 @@ class QuickActionDialogActivity : ComponentActivity() {
 internal enum class TileType {
     DNS,
     USB,
+    WIREGUARD,
     ALL
 }
 
@@ -387,6 +491,8 @@ internal sealed interface QuickActionKind {
     data object DnsAuto : QuickActionKind
     data class DnsHostname(val entry: DnsHostnameEntry) : QuickActionKind
     data class UsbDebugging(val enable: Boolean) : QuickActionKind
+    data object WireGuardOff : QuickActionKind
+    data class WireGuardTunnel(val tunnelName: String) : QuickActionKind
 }
 
 internal object QuickActionResolver {
@@ -404,6 +510,10 @@ internal object QuickActionResolver {
                     componentNameText?.contains(PrivateDnsTileService::class.java.name) == true ->
                 TileType.DNS
 
+            componentName?.className == WireGuardTileService::class.java.name ||
+                    componentNameText?.contains(WireGuardTileService::class.java.name) == true ->
+                TileType.WIREGUARD
+
             else -> TileType.ALL
         }
     }
@@ -419,6 +529,9 @@ internal object QuickActionResolver {
         }
         if (tileType == TileType.USB || tileType == TileType.ALL) {
             actions += buildUsbActions(context, prefsManager)
+        }
+        if (tileType == TileType.WIREGUARD || tileType == TileType.ALL) {
+            actions += buildWireGuardActions(context, prefsManager)
         }
         return actions
     }
@@ -474,6 +587,37 @@ internal object QuickActionResolver {
                 description = context.getString(R.string.shortcut_usb_off_long),
                 iconRes = R.drawable.ic_usb_off,
                 kind = QuickActionKind.UsbDebugging(enable = false)
+            )
+        }
+        return actions
+    }
+
+    private fun buildWireGuardActions(
+        context: Context,
+        prefsManager: PreferencesManager
+    ): List<QuickAction> {
+        val tunnelNames = prefsManager.getWireGuardTunnelNamesBlocking()
+        if (tunnelNames.isEmpty()) return emptyList()
+
+        val selectedTunnel = prefsManager.getWireGuardTunnelNameBlocking()
+        val actions = mutableListOf<QuickAction>()
+        actions += QuickAction(
+            label = context.getString(R.string.shortcut_wireguard_off_short),
+            description = context.getString(R.string.shortcut_wireguard_off_long),
+            iconRes = R.drawable.ic_wireguard_off,
+            kind = QuickActionKind.WireGuardOff
+        )
+        tunnelNames.forEach { tunnelName ->
+            val description = if (tunnelName == selectedTunnel) {
+                context.getString(R.string.shortcut_wireguard_tunnel_selected_long, tunnelName)
+            } else {
+                context.getString(R.string.shortcut_wireguard_tunnel_long, tunnelName)
+            }
+            actions += QuickAction(
+                label = tunnelName,
+                description = description,
+                iconRes = R.drawable.ic_wireguard_on,
+                kind = QuickActionKind.WireGuardTunnel(tunnelName)
             )
         }
         return actions

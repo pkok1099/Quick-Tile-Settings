@@ -20,6 +20,7 @@ import com.rbn.qtsettings.utils.Constants.BACKGROUND_DETECTION
 import com.rbn.qtsettings.utils.Constants.DNS_MODE_OFF
 import com.rbn.qtsettings.utils.Constants.TILE_ONLY_DETECTION
 import com.rbn.qtsettings.utils.PermissionUtils
+import com.rbn.qtsettings.utils.WireGuardRemoteControl
 import com.rbn.qtsettings.utils.NetworkTypeDetectionUtils
 import com.rbn.qtsettings.utils.WifiNetworkDiscovery
 import com.rbn.qtsettings.utils.WifiNetworkRuleUtils
@@ -109,6 +110,15 @@ class MainViewModel(private val prefsManager: PreferencesManager) : ViewModel() 
     private val _isDeviceRooted = MutableStateFlow(false)
     val isDeviceRooted = _isDeviceRooted.asStateFlow()
 
+    val wireGuardTunnelName = prefsManager.wireGuardTunnelName
+    val wireGuardTunnelNames = prefsManager.wireGuardTunnelNames
+
+    private val _isWireGuardAppInstalled = MutableStateFlow(false)
+    val isWireGuardAppInstalled = _isWireGuardAppInstalled.asStateFlow()
+
+    private val _hasWireGuardControlPermission = MutableStateFlow(false)
+    val hasWireGuardControlPermission = _hasWireGuardControlPermission.asStateFlow()
+
     private val _permissionGrantStatus = MutableStateFlow<String?>(null)
     val permissionGrantStatus = _permissionGrantStatus.asStateFlow()
 
@@ -178,6 +188,10 @@ class MainViewModel(private val prefsManager: PreferencesManager) : ViewModel() 
 
     fun setDnsRequireUnlock(enabled: Boolean) = prefsManager.setDnsRequireUnlock(enabled)
     fun setUsbRequireUnlock(enabled: Boolean) = prefsManager.setUsbRequireUnlock(enabled)
+
+    fun setWireGuardTunnelName(name: String) = prefsManager.setWireGuardTunnelName(name)
+    fun addWireGuardTunnelName(name: String) = prefsManager.addWireGuardTunnelName(name)
+    fun removeWireGuardTunnelName(name: String) = prefsManager.removeWireGuardTunnelName(name)
 
     fun setVpnDetectionEnabled(enabled: Boolean) {
         prefsManager.setVpnDetectionEnabled(enabled)
@@ -557,6 +571,9 @@ class MainViewModel(private val prefsManager: PreferencesManager) : ViewModel() 
             _appHasShizukuPermission.value = false
         }
         _isDeviceRooted.value = PermissionUtils.isDeviceRooted()
+        _isWireGuardAppInstalled.value = WireGuardRemoteControl.isWireGuardAppInstalled(context)
+        _hasWireGuardControlPermission.value =
+            WireGuardRemoteControl.hasControlPermission(context)
         refreshSystemQuickActionStates(context.applicationContext)
     }
 

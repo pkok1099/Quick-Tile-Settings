@@ -10,7 +10,8 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.rbn.qtsettings"
+        //clone
+        applicationId = "com.onlasdan.tiles"
         minSdk = 29
         targetSdk = 37
         versionCode = 13
