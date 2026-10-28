@@ -1,0 +1,7 @@
+Version 1.5.1-wg1
+
+- Added WireGuard remote-control tile: turns tunnels on/off via the official WireGuard app (the app does not run a tunnel itself).
+- Added WireGuard tab with a manually entered tunnel list and selected tunnel.
+- Added long-press quick-action dialog to connect a tunnel or turn WireGuard off.
+- Changed applicationId to com.onlasdan.tiles.
+- Based on Quick-Tile-Settings 1.5.1 (RBN-Apps), GPL-3.0.
